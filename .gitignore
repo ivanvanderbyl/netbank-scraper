@@ -1,0 +1,7 @@
+/.secrets
+/dist
+/tmp
+/coverage
+/node_modules
+*.log
+.DS_Store

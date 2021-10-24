@@ -1,0 +1,15 @@
+version: '3.7'
+
+services:
+  app:
+    build:
+      context: .
+      target: builder
+    command: npx nodemon index.js
+    ports:
+      - '5000:5000'
+    volumes:
+      - .:/srv/workspace
+      - ./tmp/docker_node_modules:/srv/workspace/node_modules
+volumes:
+  docker_node_modules:
