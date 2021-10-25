@@ -108,6 +108,7 @@ export class AutomatedPage {
   }
 
   async stop() {
+    await this.page?.close?.()
     await this.browser?.close?.()
     return this
   }
@@ -149,7 +150,7 @@ export class AutomatedPage {
     let now = new Date()
     let startDateValue = format(subMonths(now, 6), 'dd/MM/yyyy')
     let endDateValue = format(now, 'dd/MM/yyyy')
-    console.log(startDateValue, endDateValue)
+    console.log(`   > Date range ${startDateValue} to ${endDateValue}`)
 
     let startInput = await this.page?.waitForSelector(PageSelectors.datePickerStart, {
       visible: true,
@@ -167,12 +168,11 @@ export class AutomatedPage {
 
     const downloadFinished = new Promise<void>((yeah, nah) => {
       const watcher = watch(this.options.screenshotPath, (_, filename) => {
-        if (filename.endsWith('.csv')) {
+        if (filename.endsWith('CSVData.csv')) {
           fs.rename(
             join(this.options.screenshotPath, filename),
             join(this.options.screenshotPath, `${accountNumber}-${format(now, 'yyMMdd')}.csv`),
           )
-          console.log('done')
           watcher.close()
           yeah()
         }
@@ -238,18 +238,5 @@ export class AutomatedPage {
 
   private async prepare() {
     await fs.mkdir(this.options.screenshotPath, { recursive: true })
-  }
-
-  private async clickOnElement(selector: string, x = null, y = null) {
-    const rect = await this.page?.$eval(selector, (el) => {
-      const { top, left, width, height } = el.getBoundingClientRect()
-      return { top, left, width, height }
-    })
-    console.log(rect)
-
-    if (!rect) return
-    const _x = x !== null ? x : rect.width / 2
-    const _y = y !== null ? y : rect.height / 2
-    await this.page?.mouse.click(rect.left + _x, rect.top + _y)
   }
 }
