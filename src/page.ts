@@ -1,6 +1,8 @@
-require('dotenv').config()
+import { format, subMonths } from 'date-fns'
+import { watch } from 'fs'
 import fs from 'fs/promises'
 import KSUID from 'ksuid'
+import { join } from 'path'
 import pptr, {
   Browser,
   BrowserConnectOptions,
@@ -9,6 +11,8 @@ import pptr, {
   LaunchOptions,
   Page,
 } from 'puppeteer'
+
+require('dotenv').config()
 
 export const LOGIN_URL = 'https://www.my.commbank.com.au/netbank/Logon/Logon.aspx'
 
@@ -23,6 +27,10 @@ export const PageSelectors = {
   accountItem: '.account-wrapper',
   accountItemLink: '.account-wrapper .account-info a.account-link',
   accountItemNumber: '.account-wrapper .account-info .account-number',
+  dateFilterButton: '#date-filter-bubble',
+  datePickerStart: '#date-picker-start-date-input',
+  datePickerEnd: '#date-picker-end-date-input',
+  datePickerApply: '#date-filter-modal-submit-btn',
 }
 
 const userAgent = `User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36`
@@ -94,6 +102,7 @@ export class AutomatedPage {
   async start(options: LaunchOptions & BrowserLaunchArgumentOptions & BrowserConnectOptions = {}) {
     await this.prepare()
     // options.userDataDir = this.options.userDataDir
+    options.defaultViewport = { width: 1440, height: 1280 }
     this.browser = await pptr.launch(options)
     return this
   }
@@ -126,10 +135,70 @@ export class AutomatedPage {
     return this
   }
 
+  async goto(url: string) {
+    await this.page?.goto(url, { timeout: 300 * 1000 })
+  }
+
+  async exportAccount(url: string, accountNumber: string) {
+    if (url.startsWith('/')) url = 'https://www.commbank.com.au' + url
+    await this.goto(url)
+    const filterBtn = await this.page?.$(PageSelectors.dateFilterButton)
+    if (await filterBtn?.evaluate((el) => el.getAttribute('aria-expanded') !== 'true')) {
+      await filterBtn?.click()
+    }
+    let now = new Date()
+    let startDateValue = format(subMonths(now, 6), 'dd/MM/yyyy')
+    let endDateValue = format(now, 'dd/MM/yyyy')
+    console.log(startDateValue, endDateValue)
+
+    let startInput = await this.page?.waitForSelector(PageSelectors.datePickerStart, {
+      visible: true,
+    })
+    await startInput?.type(startDateValue)
+
+    let endInput = await this.page?.waitForSelector(PageSelectors.datePickerEnd, { visible: true })
+    await endInput?.type(endDateValue)
+    await this.page?.click(PageSelectors.datePickerApply)
+
+    await this.page?.client().send('Page.setDownloadBehavior', {
+      behavior: 'allow',
+      downloadPath: this.options.screenshotPath,
+    })
+
+    const downloadFinished = new Promise<void>((yeah, nah) => {
+      const watcher = watch(this.options.screenshotPath, (_, filename) => {
+        if (filename.endsWith('.csv')) {
+          fs.rename(
+            join(this.options.screenshotPath, filename),
+            join(this.options.screenshotPath, `${accountNumber}-${format(now, 'yyMMdd')}.csv`),
+          )
+          console.log('done')
+          watcher.close()
+          yeah()
+        }
+      })
+    })
+
+    await this.sleep(1000)
+    await this.click('#export-link')
+    await this.sleep(1000)
+    await this.click('#export-format-type label[for="export-format-type-CSV"]')
+    await this.sleep(1000)
+    await this.click('#txnListExport-submit-btn')
+
+    await downloadFinished
+    await this.sleep(1000)
+  }
+
+  async sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
   async click(selector: string, options?: ClickOptions) {
     const element = await this.page!.waitForSelector(selector, { visible: true })
     if (element == null) return
-    await element.click(options)
+    let point = await element.clickablePoint()
+    await this.page?.mouse.click(point!.x, point!.y)
     return this
   }
 

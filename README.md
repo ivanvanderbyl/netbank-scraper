@@ -14,8 +14,8 @@ No warranties are implied, by using this repo you understand the risks and have 
 
 - [x] Login
 - [x] Accounts list
-- [ ] Transactions (partially complete, needs pagination token)
-- [ ] Download of transactions for given date range
+- [-] Transactions (works for modern transaction accounts, but not older style products)
+- [x] Download of transactions for given date range
 - [ ] Export to LunchMoney
 
 ## Usage
